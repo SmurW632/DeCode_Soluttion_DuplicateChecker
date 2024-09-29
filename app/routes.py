@@ -25,52 +25,49 @@ class videoLinkResponse(BaseModel):
     is_duplicate: bool
     duplicate_for: str
 
-async def upoadingVideo(link):
-    
+async def uploadingVideo(link):
     response = requests.get(link)
+    
     if response.status_code == 200:
-
         session = SessionLocal()
-        query = session.query(Video.link).all()
+        
+        # Получаем все ссылки из базы данных
+        db_links = session.query(Video.link).all()
+        db_links = [db_link[0] for db_link in db_links]  # Преобразуем кортежи в список
 
-        #Создание пути к папке videos
+        # Создание пути к папке videos
         VIDEOS_DIR = os.path.join(os.path.dirname(__file__), 'videos')
         
-        #Создание папки videos в случае если папки нет
+        # Создание папки videos в случае если папки нет
         os.makedirs(VIDEOS_DIR, exist_ok=True)
-        
 
         # Получаем имя файла из ссылки загруж. видео 
         file_path_client = os.path.join(VIDEOS_DIR, os.path.basename(link))
-        # Получаем путь файла из бд
-        
-        file_path_db = os.path.join(VIDEOS_DIR, os.path.basename(query))
+        for file_link in db_links:
+            file_path_bd = os.path.join(VIDEOS_DIR, os.path.basename(file_link))
+            
 
-
-
-        # Сохраняем файлы
+        # Сохраняем файл
         with open(file_path_client, "wb") as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
 
-        with open(file_path_db, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
-        
-        
-        result = is_dublicate(file_path_client, file_path_db)
-        return result
+        # Проверяем на дубликаты
+        for link in db_links:
+            is_dublicate(response, link)
 
-        
+        print(f"Видео загружено и сохранено по пути: {file_path_client}")
+        return False  # Ссылка не дублируется
+
     else:
-        print(response.status_code)
+        print(f"Ошибка загрузки: {response.status_code}")
 
 
 
 #Запрос на проверку видео
 @app.post("/check-video-duplicate")
 async def chek_video_duplicate(LinkVideo: videoLinkRequest):
-    result = await upoadingVideo(LinkVideo.link)
+    result = await uploadingVideo(LinkVideo.link)
 
     #В таком формате должен возвращаться ответ проверки видео
     return result
